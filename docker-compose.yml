@@ -1,0 +1,93 @@
+version: '3.7'
+
+services:
+  # PostgreSQLの実行環境
+  postgresql:
+    container_name: project_gopgsql_postgresql
+    build:
+      context: ./docker/database
+      dockerfile: Dockerfile
+    image: devenv/postgresql
+    env_file:
+      - docker/database/.env
+    ports:
+      - 5432:5432
+    networks:
+      - container_link
+    volumes:
+      - ./docker/database/init:/docker-entrypoint-initdb.d
+      #- ./docker/database/postgresql_data:/var/lib/postgresql/data:rw
+      - dbdata:/var/lib/postgresql/data
+    environment:
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_USER: postgres
+      POSTGRES_DB: postgres
+      TZ: Asia/Tokyo
+      POSTGRES_INITDB_ARGS: '--encoding=UTF-8 --locale=C'
+    logging:
+      driver: json-file
+      options:
+        max-size: '5m' # ログのサイズ5MB
+        max-file: '1'
+
+  # pgAdmin4の実行環境
+  pgadmin4:
+    container_name: project_gopgsql_pgadmin4
+    image: dpage/pgadmin4:6
+    env_file:
+      - docker/pgadmin4/.env
+    depends_on:
+      - postgresql
+    ports:
+      - 35433:80
+    networks:
+      - container_link
+    volumes:
+      - pgadmin4_data:/var/lib/pgadmin:rw
+    environment:
+      TZ: Asia/Tokyo
+    logging:
+      driver: json-file
+      options:
+        max-size: '5m'
+        max-file: '1'
+
+  # Golangの実行環境
+  app:
+    container_name: project_gopgsql_app
+    build:
+      context: ./
+      dockerfile: docker/app/Dockerfile
+    image: devenv/golang
+    ports:
+      - 7070:7070
+    depends_on:
+      - postgresql
+    networks:
+      - container_link
+    volumes:
+      - ./src/api:/go/src/app:rw
+    tty: true
+    environment:
+      TZ: Asia/Tokyo
+    #restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: '5m'
+        max-file: '1'
+
+networks:
+  default:
+    external:
+      name: bridge
+  container_link:
+    name: devenv.docker.internal
+
+volumes:
+  dbdata:
+#volumes:
+#  postgresql_data:
+#    driver: local
+  pgadmin4_data:
+    driver: local
